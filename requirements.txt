@@ -1,6 +1,6 @@
 Flask==3.0.3
 python-dotenv==1.0.0
-werkzeug==2.3.7
+werkzeug>=3.0.0
 pycountry==23.12.11
 langchain==0.1.4
 langchain-google-genai==0.0.7
