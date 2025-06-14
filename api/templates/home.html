@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Paper Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 2rem;
+            background-color: #f8f9fa;
+        }
+        .card {
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f8ff;
+            border-bottom: 1px solid #e3f2fd;
+        }
+        .btn-primary {
+            background-color: #3c6e71;
+            border-color: #3c6e71;
+        }
+        .btn-primary:hover {
+            background-color: #335c5f;
+            border-color: #335c5f;
+        }
+        .btn-outline-primary {
+            color: #3c6e71;
+            border-color: #3c6e71;
+        }
+        .btn-outline-primary:hover {
+            background-color: #3c6e71;
+            border-color: #3c6e71;
+        }
+        .results-container {
+            display: none;
+        }
+        #file-dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #file-dropzone:hover {
+            border-color: #3c6e71;
+            background-color: #f1f8ff;
+        }
+        .tab-content {
+            padding: 20px;
+        }
+        #loading-spinner {
+            display: none;
+        }
+        .spinner-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            margin-top: 20px;
+            color: #3c6e71;
+        }
+        .markdown-content h3 {
+            font-size: 1.25rem;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Research Paper Analyzer</h1>
+        
+        <!-- Upload Section -->
+        <div id="upload-container" class="card">
+            <div class="card-body">
+                <h3 class="card-title">Upload Research Paper</h3>
+                <div id="file-dropzone" onclick="document.getElementById('file-input').click()">
+                    <h5 class="mt-3">Drag & drop your file here</h5>
+                    <p class="text-muted">or click to browse (PDF, TXT, DOCX)</p>
+                </div>
+                <input type="file" id="file-input" accept=".pdf,.txt,.docx" style="display: none;">
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div id="loading-spinner" class="card" style="display: none;">
+            <div class="card-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p>Processing your document... This may take a minute.</p>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="results-container" class="results-container" style="display: none;">
+            <!-- Content will be dynamically inserted here -->
+        </div>
+    </div>
+    
+    <!-- Translation Modal -->
+    <div class="modal fade" id="translate-modal" tabindex="-1" aria-labelledby="translate-modal-label" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="translate-modal-label">Translate Content</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="content-type">
+                    <input type="hidden" id="original-content">
+                    
+                    <div class="mb-3">
+                        <label for="target-language" class="form-label">Select Target Language</label>
+                        <select class="form-select" id="target-language">
+                            {% for language in languages %}
+                            <option value="{{ language }}">{{ language }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div id="translate-loading" class="text-center" style="display: none;">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                        <span class="ms-2">Translating...</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="translate-btn" onclick="translateContent()">Translate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap & Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"></script>
+    
+    <script>
+        // Global variable to store the current file ID
+        let currentFileId = null;
+        
+        function handleFileUpload(file) {
+            // Clear any previous results
+            document.getElementById('results-container').style.display = 'none';
+            
+            // Show loading indicator
+            document.getElementById('upload-container').style.display = 'none';
+            document.getElementById('loading-spinner').style.display = 'block';
+            
+            // Create form data for upload
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            console.log('Starting file upload:', file.name);
+            
+            // Upload file
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Upload response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Log the full response for debugging
+                console.log('Upload response data:', data);
+                
+                // Hide loading spinner
+                document.getElementById('loading-spinner').style.display = 'none';
+                
+                if (data.error) {
+                    // Show error
+                    console.error('Error from server:', data.error);
+                    alert('Error: ' + data.error);
+                    document.getElementById('upload-container').style.display = 'block';
+                    return;
+                }
+                
+                // Store the file ID for later use
+                currentFileId = data.file_id;
+                console.log('Stored file ID:', currentFileId);
+                
+                // Display results
+                displayResults(data);
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                document.getElementById('loading-spinner').style.display = 'none';
+                document.getElementById('upload-container').style.display = 'block';
+                alert('Error: ' + error.message);
+            });
+        }
+        
+        function displayResults(data) {
+            console.log('Starting to display results');
+            const resultsContainer = document.getElementById('results-container');
+            
+            if (!resultsContainer) {
+                console.error('Results container not found in DOM');
+                alert('Error: Could not find results container');
+                return;
+            }
+            
+            // Show the results container
+            resultsContainer.style.display = 'block';
+            
+            // Create the HTML for the results
+            resultsContainer.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Analysis: ${data.filename || 'Unnamed document'}</h3>
+                    <button class="btn btn-outline-secondary" onclick="resetPage()">Upload New File</button>
+                </div>
+                
+                <ul class="nav nav-tabs" id="resultTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">Summary</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="insights-tab" data-bs-toggle="tab" data-bs-target="#insights" type="button" role="tab" aria-controls="insights" aria-selected="false">Insights</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="qa-tab" data-bs-toggle="tab" data-bs-target="#qa" type="button" role="tab" aria-controls="qa" aria-selected="false">Q&A</button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <h5>Paper Summary</h5>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showTranslateModal('summary')">Translate</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="summary-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="insights" role="tabpanel" aria-labelledby="insights-tab">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <h5>Research Insights</h5>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showTranslateModal('insights')">Translate</button>
+                            </div>
+                            <div class="card-body">
+                                <div id="insights-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="qa" role="tabpanel" aria-labelledby="qa-tab">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Ask a Question</h5>
+                                <div class="input-group mb-3">
+                                    <input type="text" id="question-input" class="form-control" placeholder="What would you like to know about this paper?">
+                                    <button class="btn btn-primary" onclick="askQuestion()">Ask</button>
+                                </div>
+                                <div id="qa-loading" class="text-center" style="display: none;">
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    <span class="ms-2">Processing your question...</span>
+                                </div>
+                                <div id="qa-result" style="display: none;">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between">
+                                            <h6 class="mb-0">Answer</h6>
+                                            <button class="btn btn-sm btn-outline-primary" onclick="showTranslateModal('answer')">Translate</button>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="answer-content"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="qa-history"></div>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                // Populate content
+                const summaryContent = document.getElementById('summary-content');
+                const insightsContent = document.getElementById('insights-content');
+                
+                if (!summaryContent || !insightsContent) {
+                    console.error('Content containers not found');
+                    return;
+                }
+                
+                console.log('Content containers found, adding content');
+                
+                // Check if data contains summary and insights
+                if (!data.summary) {
+                    console.error('No summary in response data');
+                    summaryContent.innerHTML = '<p class="text-danger">No summary available</p>';
+                } else {
+                    summaryContent.innerHTML = marked.parse(data.summary);
+                }
+                
+                if (!data.insights) {
+                    console.error('No insights in response data');
+                    insightsContent.innerHTML = '<p class="text-danger">No insights available</p>';
+                } else {
+                    insightsContent.innerHTML = marked.parse(data.insights);
+                }
+                
+                console.log('Content added successfully');
+            } catch (error) {
+                console.error('Error displaying results:', error);
+                alert('Error displaying results: ' + error.message);
+            }
+        }
+        
+        function resetPage() {
+            document.getElementById('results-container').style.display = 'none';
+            document.getElementById('upload-container').style.display = 'block';
+            document.getElementById('file-input').value = '';
+            currentFileId = null;
+        }
+        
+        function askQuestion() {
+            const question = document.getElementById('question-input').value.trim();
+            if (!question) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            console.log('Asking question using file ID:', currentFileId);
+            if (!currentFileId) {
+                alert('Error: No document is currently loaded');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('qa-loading').style.display = 'flex';
+            document.getElementById('qa-result').style.display = 'none';
+            
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    file_id: currentFileId,
+                    question: question
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading
+                document.getElementById('qa-loading').style.display = 'none';
+                
+                if (data.error) {
+                    console.error('Error from server:', data.error);
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                console.log('Answer received:', data);
+                
+                // Show answer
+                const answerContent = document.getElementById('answer-content');
+                answerContent.innerHTML = marked.parse(data.answer);
+                document.getElementById('qa-result').style.display = 'block';
+                
+                // Add to history
+                addToQAHistory(question, data.answer);
+            })
+            .catch(error => {
+                console.error('Question error:', error);
+                document.getElementById('qa-loading').style.display = 'none';
+                alert('Error: ' + error.message);
+            });
+        }
+        
+        function addToQAHistory(question, answer) {
+            const history = document.getElementById('qa-history');
+            const item = document.createElement('div');
+            item.className = 'card mb-3';
+            item.innerHTML = `
+                <div class="card-header">
+                    <strong>Q: ${question}</strong>
+                </div>
+                <div class="card-body">
+                    <div class="markdown-content">${marked.parse(answer)}</div>
+                </div>
+            `;
+            history.prepend(item);
+        }
+        
+        // Set up the file upload event listeners when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const dropzone = document.getElementById('file-dropzone');
+            
+            // Handle file selection via the file input
+            fileInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    handleFileUpload(file);
+                }
+            });
+            
+            // Handle drag and drop
+            dropzone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                dropzone.classList.add('border-primary', 'bg-light');
+            });
+            
+            dropzone.addEventListener('dragleave', function() {
+                dropzone.classList.remove('border-primary', 'bg-light');
+            });
+            
+            dropzone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropzone.classList.remove('border-primary', 'bg-light');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files[0]);
+                }
+            });
+            
+            console.log('File upload event listeners initialized');
+        });
+        
+        // Translation-related functions
+        function showTranslateModal(contentType) {
+            // Store content type for reference when submitting
+            document.getElementById('content-type').value = contentType;
+            
+            // Get content to translate
+            let contentToTranslate = '';
+            
+            if (contentType === 'summary') {
+                contentToTranslate = document.getElementById('summary-content').innerHTML;
+            } else if (contentType === 'insights') {
+                contentToTranslate = document.getElementById('insights-content').innerHTML;
+            } else if (contentType === 'answer') {
+                contentToTranslate = document.getElementById('answer-content').innerHTML;
+            }
+            
+            // Store original HTML (including markdown rendering)
+            document.getElementById('original-content').value = contentToTranslate;
+            
+            // Show the modal
+            const translateModal = new bootstrap.Modal(document.getElementById('translate-modal'));
+            translateModal.show();
+        }
+        
+        function translateContent() {
+            // Get values from modal
+            const contentType = document.getElementById('content-type').value;
+            const targetLanguage = document.getElementById('target-language').value;
+            const originalContent = document.getElementById('original-content').value;
+            
+            // Get the text content from the HTML (strip HTML tags)
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = originalContent;
+            const textToTranslate = tempDiv.textContent || tempDiv.innerText || '';
+            
+            // Show loading indicator
+            document.getElementById('translate-loading').style.display = 'block';
+            document.getElementById('translate-btn').disabled = true;
+            
+            // Make API call
+            fetch('/translate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: textToTranslate,
+                    target_language: targetLanguage,
+                    source_language: 'English'  // Default source language
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading indicator
+                document.getElementById('translate-loading').style.display = 'none';
+                document.getElementById('translate-btn').disabled = false;
+                
+                if (data.error) {
+                    alert('Translation error: ' + data.error);
+                    return;
+                }
+                
+                // Update the content with translation
+                if (contentType === 'summary') {
+                    document.getElementById('summary-content').innerHTML = marked.parse(data.translation);
+                } else if (contentType === 'insights') {
+                    document.getElementById('insights-content').innerHTML = marked.parse(data.translation);
+                } else if (contentType === 'answer') {
+                    document.getElementById('answer-content').innerHTML = marked.parse(data.translation);
+                }
+                
+                // Close modal
+                const translateModal = bootstrap.Modal.getInstance(document.getElementById('translate-modal'));
+                translateModal.hide();
+            })
+            .catch(error => {
+                document.getElementById('translate-loading').style.display = 'none';
+                document.getElementById('translate-btn').disabled = false;
+                alert('Error: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>
