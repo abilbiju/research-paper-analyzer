@@ -11,13 +11,15 @@ import pycountry
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Load environment variables from .env file
-load_dotenv()
 
-# Check if API key exists
-if os.getenv("GEMINI_API_KEY") is not None:
-    os.environ["GOOGLE_API_KEY"] = os.getenv("GEMINI_API_KEY")
+# Check if GEMINI_API_KEY exists in Vercel's environment
+gemini_key = os.environ.get("GEMINI_API_KEY")
+
+if gemini_key is not None:
+    os.environ["GOOGLE_API_KEY"] = gemini_key
 else:
-    raise ValueError("GEMINI_API_KEY not found in .env file")
+    raise ValueError("GEMINI_API_KEY not found in environment variables")
+
 
 # Import LangChain components
 from langchain.chat_models import init_chat_model
