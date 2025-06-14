@@ -1,5 +1,5 @@
 Flask==3.0.3
-sqlite3 >= 3.35.0
+sqlite3 == 3.35.0
 python-dotenv==1.0.0
 werkzeug>=3.0.0
 pycountry
