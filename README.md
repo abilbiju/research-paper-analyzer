@@ -3,7 +3,8 @@
 
 Welcome to the **Research Paper Analyzer** — a user-friendly Streamlit web app designed to simplify reading and understanding academic research papers. Upload a research paper in PDF format, and get instant summaries, keyword extraction, Q&A, and even translation of key insights.
 
-🔗 **Live App**: [Click here to try it out](https://research-paper-analyzer-jcdseen7wpnneoa5pvu5tk.streamlit.app/)
+🔗 **Live App**: [Click here to try it out](https://research-paper-analyzer-jcdseen7wpnneoa5pvu5tk.streamlit.app/)  
+🔗 **GitHub Repo**: [abilbiju/research-paper-analyzer](https://github.com/abilbiju/research-paper-analyzer)
 
 ---
 
@@ -31,7 +32,7 @@ Welcome to the **Research Paper Analyzer** — a user-friendly Streamlit web app
 ## 📦 Installation (For Local Development)
 
 ```bash
-git clone https://github.com/your-username/research-paper-analyzer.git
+git clone https://github.com/abilbiju/research-paper-analyzer.git
 cd research-paper-analyzer
 pip install -r requirements.txt
 streamlit run app.py
