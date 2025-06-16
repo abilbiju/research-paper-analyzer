@@ -5,6 +5,8 @@ import streamlit as st
 from dotenv import load_dotenv
 import pycountry
 import traceback
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Get the directory where the script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,10 +27,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.document_loaders import UnstructuredFileLoader, PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.documents import Document
 
 # Configure uploads and storage with absolute paths relative to the script
@@ -57,6 +56,89 @@ LANGUAGES = sorted([language.name for language in pycountry.languages if hasattr
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ['pdf', 'txt', 'docx']
 
+# Simple vector store implementation
+class SimpleVectorStore:
+    def __init__(self, embedding_function):
+        self.embedding_function = embedding_function
+        self.documents = []
+        self.embeddings = []
+        
+    def add_documents(self, documents):
+        """Add documents to the vector store"""
+        # Convert document content to embeddings
+        texts = [doc.page_content for doc in documents]
+        new_embeddings = self.embedding_function.embed_documents(texts)
+        
+        # Store documents and their embeddings
+        self.documents.extend(documents)
+        self.embeddings.extend(new_embeddings)
+    
+    def similarity_search(self, query, k=4):
+        """Search for similar documents to the query"""
+        # Get query embedding
+        query_embedding = self.embedding_function.embed_query(query)
+        
+        # Convert to numpy for similarity calculation
+        query_embedding_np = np.array([query_embedding])
+        embeddings_np = np.array(self.embeddings)
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity(query_embedding_np, embeddings_np)[0]
+        
+        # Get top k similar document indices
+        top_k_indices = np.argsort(similarities)[-k:][::-1]
+        
+        # Return the top k documents
+        return [self.documents[i] for i in top_k_indices]
+    
+    def save(self, file_path):
+        """Save the vector store to disk"""
+        data = {
+            "documents": [document_to_dict(doc) for doc in self.documents],
+            "embeddings": self.embeddings
+        }
+        with open(file_path, "w") as f:
+            json.dump(data, f)
+    
+    @classmethod
+    def load(cls, file_path, embedding_function):
+        """Load the vector store from disk"""
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        
+        vector_store = cls(embedding_function)
+        vector_store.embeddings = data["embeddings"]
+        vector_store.documents = [
+            Document(
+                page_content=doc["page_content"],
+                metadata=doc["metadata"]
+            ) for doc in data["documents"]
+        ]
+        
+        return vector_store
+    
+    def as_retriever(self, search_kwargs=None):
+        """Return a retriever interface compatible with LangChain"""
+        if search_kwargs is None:
+            search_kwargs = {"k": 4}
+            
+        # Define a retriever function
+        def retrieve_func(query):
+            return self.similarity_search(query, k=search_kwargs.get("k", 4))
+        
+        # Create a simple object with an invoke method
+        class SimpleRetriever:
+            def __init__(self, retrieve_function):
+                self.retrieve = retrieve_function
+                
+            def invoke(self, query):
+                return self.retrieve(query)
+            
+            def get_relevant_documents(self, query):
+                return self.retrieve(query)
+                
+        return SimpleRetriever(retrieve_func)
+
 # Document handling functions
 def document_to_dict(doc):
     """Convert a LangChain Document object to a serializable dictionary."""
@@ -72,11 +154,9 @@ def save_document_metadata(file_id, metadata):
     # Create a serializable copy of the metadata
     serializable_metadata = {}
     
-    # Save collection_name - this is critical for retrieval
-    if "collection_name" in metadata:
-        serializable_metadata["collection_name"] = metadata["collection_name"]
-    else:
-        print(f"WARNING: No collection_name found in metadata for {file_id}")
+    # Save document_id - for retrieval
+    if "document_id" in metadata:
+        serializable_metadata["document_id"] = metadata["document_id"]
     
     # Handle chunks (list of Document objects)
     if "chunks" in metadata:
@@ -139,31 +219,33 @@ def process_document(file_path):
     chunks = text_splitter.split_documents(documents)
     
     # Create a unique ID for this document
-    collection_name = str(uuid.uuid4())
-    print(f"Generated collection name: {collection_name}")
+    document_id = str(uuid.uuid4())
+    print(f"Generated document ID: {document_id}")
     
-    # Create persistent vector store in the storage folder
-    persist_directory = os.path.join(STORAGE_FOLDER, collection_name)
-    os.makedirs(persist_directory, exist_ok=True)
+    # Create vector store using our simple implementation
+    vector_store = SimpleVectorStore(embeddings)
+    vector_store.add_documents(chunks)
     
-    # Create vector store - documents are automatically persisted
-    vectorstore = Chroma.from_documents(
-        documents=chunks, 
-        embedding=embeddings,
-        persist_directory=persist_directory
-    )
+    # Save the vector store
+    vector_store_path = os.path.join(STORAGE_FOLDER, f"{document_id}_vectors.json")
+    vector_store.save(vector_store_path)
     
-    # Extract metadata using the new function
-    extracted_metadata = extract_paper_metadata(documents)
+    # Extract metadata
+    try:
+        extracted_metadata = extract_paper_metadata(documents)
+    except Exception as e:
+        print(f"Error extracting metadata: {str(e)}")
+        extracted_metadata = {"error": "Failed to extract metadata"}
     
     result = {
         "chunks": chunks,
-        "collection_name": collection_name,
+        "document_id": document_id,
         "raw_text": "\n\n".join([doc.page_content for doc in documents]),
-        "paper_metadata": extracted_metadata
+        "paper_metadata": extracted_metadata,
+        "vector_store": vector_store  # Include the vector store in the result
     }
     
-    print(f"Document processed with {len(chunks)} chunks, collection name: {collection_name}")
+    print(f"Document processed with {len(chunks)} chunks, document ID: {document_id}")
     return result
 
 def generate_summary(chunks):
@@ -215,20 +297,29 @@ def generate_insights(summary):
 
 def answer_question(question, retriever):
     """Answer a question using retrieval QA"""
+    # Get relevant documents
+    documents = retriever.get_relevant_documents(question)
+    
+    # Create a context from the retrieved documents
+    context = "\n\n".join([doc.page_content for doc in documents])
+    
     qa_prompt = ChatPromptTemplate.from_template("""
     You are a helpful research assistant. Answer the question based only on the following context:
     
+    Context:
     {context}
     
-    Question: {input}
+    Question: {question}
     
     If you don't have enough information to answer this question based on the context, say "I don't have enough information to answer this question."
     """)
     
-    qa_chain = create_stuff_documents_chain(chat_model, qa_prompt)
-    retrieval_chain = create_retrieval_chain(retriever, qa_chain)
+    qa_chain = qa_prompt | chat_model | StrOutputParser()
     
-    return retrieval_chain.invoke({"input": question})
+    return {
+        "answer": qa_chain.invoke({"context": context, "question": question}),
+        "source_documents": documents
+    }
 
 def translate_text(text, target_language, source_language="English"):
     """Translate text to target language"""
@@ -381,16 +472,13 @@ if st.session_state.file_id and st.session_state.summary:
                         # Load document metadata
                         document_data = load_document_metadata(st.session_state.file_id)
                         
-                        if document_data and "collection_name" in document_data:
-                            collection_name = document_data["collection_name"]
-                            persist_directory = os.path.join(STORAGE_FOLDER, collection_name)
+                        if document_data and "document_id" in document_data:
+                            document_id = document_data["document_id"]
+                            vector_store_path = os.path.join(STORAGE_FOLDER, f"{document_id}_vectors.json")
                             
                             # Load the vector store
-                            vectorstore = Chroma(
-                                persist_directory=persist_directory,
-                                embedding_function=embeddings
-                            )
-                            retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+                            vector_store = SimpleVectorStore.load(vector_store_path, embeddings)
+                            retriever = vector_store.as_retriever(search_kwargs={"k": 5})
                             
                             # Get answer
                             response = answer_question(question, retriever)
@@ -402,6 +490,7 @@ if st.session_state.file_id and st.session_state.summary:
                             st.error("Failed to load document data. Please try reuploading the document.")
                     except Exception as e:
                         st.error(f"Error answering question: {str(e)}")
+                        st.code(traceback.format_exc())
             else:
                 st.warning("Please enter a question.")
         
