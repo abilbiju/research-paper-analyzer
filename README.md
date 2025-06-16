@@ -1,28 +1,83 @@
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fflask3&demo-title=Flask%203%20%2B%20Vercel&demo-description=Use%20Flask%203%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fflask3-python-template.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994156/random/flask.png)
 
-# Flask + Vercel
+# 📄 Research Paper Analyzer
 
-This example shows how to use Flask 3 on Vercel with Serverless Functions using the [Python Runtime](https://vercel.com/docs/concepts/functions/serverless-functions/runtimes/python).
+Welcome to the **Research Paper Analyzer** — a user-friendly Streamlit web app designed to simplify reading and understanding academic research papers. Upload a research paper in PDF format, and get instant summaries, keyword extraction, Q&A, and even translation of key insights.
 
-## Demo
+🔗 **Live App**: [Click here to try it out](https://research-paper-analyzer-jcdseen7wpnneoa5pvu5tk.streamlit.app/)
 
-https://flask-python-template.vercel.app/
+---
 
-## How it Works
+## 🚀 Features
 
-This example uses the Web Server Gateway Interface (WSGI) with Flask to enable handling requests on Vercel with Serverless Functions.
+- 📥 **Upload PDF**: Drag and drop a research paper in PDF format.
+- 🧠 **Automatic Summarization**: Extracts the core ideas using advanced LLMs.
+- ❓ **Ask Questions**: Interact with the paper using natural language queries.
+- 🔍 **Keyword Extraction**: Highlights key terms and concepts.
+- 🌐 **Multilingual Support**: Translate content into multiple languages.
+- 📊 **Insights Generator**: Generates structured insights for quick reference.
 
-## Running Locally
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend**: [Streamlit](https://streamlit.io/)
+- **LLMs**: LangChain + OpenAI / Gemini
+- **Document Parsing**: PyMuPDF / PDFPlumber
+- **Embeddings and Retrieval**: FAISS / ChromaDB
+- **Translation (optional)**: Whisper / Google Translate API
+
+---
+
+## 📦 Installation (For Local Development)
 
 ```bash
-npm i -g vercel
-vercel dev
+git clone https://github.com/your-username/research-paper-analyzer.git
+cd research-paper-analyzer
+pip install -r requirements.txt
+streamlit run app.py
 ```
 
-Your Flask application is now available at `http://localhost:3000`.
+---
 
-## One-Click Deploy
+## 📁 File Structure
 
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=vercel-examples):
+```bash
+├── app.py                 # Main Streamlit app
+├── summarizer.py          # LLM summarization logic
+├── qa_module.py           # Q&A and insight generation
+├── translator.py          # Language translation logic
+├── utils/
+│   ├── pdf_loader.py      # PDF reading and preprocessing
+│   └── text_cleaner.py    # Cleanup functions
+├── requirements.txt       # Python dependencies
+└── README.md              # You are here
+```
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fexamples%2Ftree%2Fmain%2Fpython%2Fflask3&demo-title=Flask%203%20%2B%20Vercel&demo-description=Use%20Flask%203%20on%20Vercel%20with%20Serverless%20Functions%20using%20the%20Python%20Runtime.&demo-url=https%3A%2F%2Fflask3-python-template.vercel.app%2F&demo-image=https://assets.vercel.com/image/upload/v1669994156/random/flask.png)
+---
+
+## 🧪 How to Use
+
+1. Open the [web app](https://research-paper-analyzer-jcdseen7wpnneoa5pvu5tk.streamlit.app/)
+2. Upload a PDF research paper.
+3. Wait for the content to load and be processed.
+4. Ask questions, view summaries, or translate findings.
+
+---
+
+## 🧠 Use Cases
+
+- Students summarizing lengthy academic papers
+- Researchers cross-checking multiple sources
+- Professionals quickly understanding technical documents
+
+---
+
+## 🤝 Contributions
+
+Want to add new features like citation analysis, better question-answering, or more LLMs? PRs and ideas are always welcome!
+
+---
+
+## 📜 License
+
+MIT License. Feel free to use, modify, and share.
