@@ -35,23 +35,8 @@ Welcome to the **Research Paper Analyzer** — a user-friendly Streamlit web app
 git clone https://github.com/abilbiju/research-paper-analyzer.git
 cd research-paper-analyzer
 pip install -r requirements.txt
-streamlit run app.py
-```
-
----
-
-## 📁 File Structure
-
-```bash
-├── app.py                 # Main Streamlit app
-├── summarizer.py          # LLM summarization logic
-├── qa_module.py           # Q&A and insight generation
-├── translator.py          # Language translation logic
-├── utils/
-│   ├── pdf_loader.py      # PDF reading and preprocessing
-│   └── text_cleaner.py    # Cleanup functions
-├── requirements.txt       # Python dependencies
-└── README.md              # You are here
+cd research-paper-analyzer/api
+streamlit run og.py
 ```
 
 ---
