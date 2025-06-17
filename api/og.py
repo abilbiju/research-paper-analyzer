@@ -31,7 +31,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.document_loaders import UnstructuredFileLoader, PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
+# Replace Chroma with FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -153,12 +154,13 @@ def process_document(file_path):
         persist_directory = os.path.join(STORAGE_FOLDER, collection_name)
         os.makedirs(persist_directory, exist_ok=True)
         
-        # Create vector store - documents are automatically persisted
-        vectorstore = Chroma.from_documents(
+        # Create FAISS index and save it to disk
+        vectorstore = FAISS.from_documents(
             documents=chunks, 
-            embedding=embeddings,
-            persist_directory=persist_directory
+            embedding=embeddings
         )
+        # Save the FAISS index
+        vectorstore.save_local(persist_directory)
         
         # Extract metadata using the new function - wrapped in try-except
         try:
@@ -1134,10 +1136,10 @@ if st.session_state.file_id and st.session_state.summary:
                             collection_name = document_data["collection_name"]
                             persist_directory = os.path.join(STORAGE_FOLDER, collection_name)
                             
-                            # Load the vector store
-                            vectorstore = Chroma(
-                                persist_directory=persist_directory,
-                                embedding_function=embeddings
+                            # Load the vector store using FAISS instead of Chroma
+                            vectorstore = FAISS.load_local(
+                                persist_directory,
+                                embeddings
                             )
                             retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
                             
@@ -1331,6 +1333,3 @@ if st.session_state.file_id and st.session_state.summary:
                 st.info("Click 'Extract Images and Figures' to process the document.")
         else:
             st.info("Please upload a document to analyze figures and images.")
-
-# Helper functions for image processing - moving these earlier in the file
-
