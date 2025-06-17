@@ -27,3 +27,4 @@ pillow
 google-cloud-vision
 networkx
 pyvis
+faiss-cpu
