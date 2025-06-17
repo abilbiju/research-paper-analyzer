@@ -1136,23 +1136,30 @@ if st.session_state.file_id and st.session_state.summary:
                             collection_name = document_data["collection_name"]
                             persist_directory = os.path.join(STORAGE_FOLDER, collection_name)
                             
-                            # Load the vector store using FAISS instead of Chroma
-                            vectorstore = FAISS.load_local(
-                                persist_directory,
-                                embeddings
-                            )
-                            retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-                            
-                            # Get answer
-                            response = answer_question(question, retriever)
-                            answer = response["answer"]
-                            
-                            # Store in session state
-                            st.session_state.answers.append({"question": question, "answer": answer})
+                            try:
+                                # Load the vector store using FAISS with safe deserialization parameter
+                                vectorstore = FAISS.load_local(
+                                    folder_path=persist_directory,
+                                    embeddings=embeddings,
+                                    allow_dangerous_deserialization=True  # Add this parameter to fix the error
+                                )
+                                
+                                retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+                                
+                                # Get answer
+                                response = answer_question(question, retriever)
+                                answer = response["answer"]
+                                
+                                # Store in session state
+                                st.session_state.answers.append({"question": question, "answer": answer})
+                            except Exception as e:
+                                st.error(f"Error loading vector store: {str(e)}")
+                                st.info("This might be due to a serialization issue. Try re-uploading the document.")
                         else:
                             st.error("Failed to load document data. Please try reuploading the document.")
                     except Exception as e:
                         st.error(f"Error answering question: {str(e)}")
+                        st.code(traceback.format_exc())
             else:
                 st.warning("Please enter a question.")
         
